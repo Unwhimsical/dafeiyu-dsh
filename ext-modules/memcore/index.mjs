@@ -141,6 +141,16 @@ export default {
     const chatUnlocked = (chatId) => { try { return Boolean(adultGate()?.unlockedChat?.(String(chatId || ''))) } catch { return false } }
     const codeTurn = (chatId, text) => { try { return Boolean(adultGate()?.isCodeTurn?.(String(chatId || ''), text)) } catch { return false } }
     const isolatedChat = (chatId) => { try { return Boolean(adultGate()?.isIsolatedChat?.(String(chatId || ''))) } catch { return false } }
+    // 存储用：隔离号（不含主人本人）。大脑据此不把这轮写进 turns / spill / 话簿；判断出错按隔离处理
+    const isolatedPeer = (chatId) => {
+      try {
+        const g = adultGate()
+        if (!g) return false
+        if (typeof g.isIsolatedPeer === 'function') return Boolean(g.isIsolatedPeer(String(chatId || '')))
+        const owner = String((api.core && typeof api.core.getConfig === 'function' && api.core.getConfig().ownerQQ) || '')
+        return Boolean(g.isIsolatedChat?.(String(chatId || ''))) && String(chatId || '') !== 'private:' + owner
+      } catch { return true }
+    }
     function isOwnerQQPrivateId(chatId) {
       const o = ownerQQNow()
       return Boolean(o) && String(chatId || '') === 'private:' + o
@@ -239,7 +249,7 @@ export default {
     async function recallV2(query, { k = 4, chatId = '' } = {}) {
       const chat = v2Chat(chatId)
       // 18+ 记忆只给「对上暗号」的那个 QQ 私聊（主人或额外 18+ 号，各看各的）；抖音、群、别人一律 adult:false
-      const payload = { message: String(query).slice(0, 400), chat_id: chat, persona: cfg().v2Persona, limit: Number(k || cfg().k || 4), adult: chatUnlocked(chatId), isolated: isolatedChat(chatId) }
+      const payload = { message: String(query).slice(0, 400), chat_id: chat, persona: cfg().v2Persona, limit: Number(k || cfg().k || 4), adult: chatUnlocked(chatId), isolated: isolatedPeer(chatId) }
       let out = null
       try {
         out = await v2call('/activate', payload, 1600)
@@ -294,9 +304,9 @@ export default {
         recalled_ids: (memo && memo.ids) || [],
         persona: c.v2Persona,
         record_user: false,
-        // 18+ / 隔离会话：大脑照常做出站守卫，但这一轮不进话簿底账
+        // 18+ / 隔离会话：大脑照常做出站守卫，但这一轮不进 turns / spill / 话簿
         adult: chatUnlocked(chatId),
-        isolated: isolatedChat(chatId),
+        isolated: isolatedPeer(chatId),
       }, 1200).catch(() => {})
     }
 
@@ -702,7 +712,8 @@ const OWNER_PRIVATE_ALLOW = '（你在跟主人私聊：主人开启了成人向
                 kind: ['episode', 'fact', 'preference', 'relation', 'skill'].includes(String(kind)) ? String(kind) : 'episode',
                 importance: Number(importance ?? 0.6),
                 visibility: group ? 'group' : 'private',
-                meta: { chatId: chat.chatId, tool: 1, speaker: group ? speakerFor(chat.chatId, text, who) : (lastSpeaker.get(String(chat.chatId)) || chat.userId) },
+                // 18+ 窗口里她自己记的也算 18+：打 nsfw 隐藏标签，不进日常记忆
+                meta: { chatId: chat.chatId, tool: 1, speaker: group ? speakerFor(chat.chatId, text, who) : (lastSpeaker.get(String(chat.chatId)) || chat.userId), ...(!group && chatUnlocked(chat.chatId) ? { tags: ['nsfw'] } : {}) },
               })
               return { ok: true, message: `记下了（#${r.id}）` }
             } catch (error) {

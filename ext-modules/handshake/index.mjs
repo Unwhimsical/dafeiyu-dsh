@@ -9,7 +9,7 @@
 //   在进聊天记录 / 记忆 / 情绪 / 模型之前就被换成「【暗号】」。对暗号的几句标成「口令轮」，情绪、记忆、身体事件一律跳过。
 //
 // 隔离：所有允许账号（主人 + 额外号 + 曾经对上过暗号的号）都是「隔离」账号：
-//   - 自动写进 ext.memcore.isolatePeople（大脑 identity_sync 据此把它们的私聊标成 private，只在本人私聊可见）；
+//   - 记忆隔离名单 ext.memcore.isolatePeople 只有主人能改：这里只在日志里提醒主人哪些隔离账号还没写进去，不自动写；
 //   - 本地记一份「他说过的话」的加盐 bigram 指纹，群 / 别人的私聊 / 空间 / 签名 / 抖音 / 自学 这些出口发之前比对，
 //     撞上（换说法也算）就拦（public-guard 里调用 leakCheck）。
 import fs from 'node:fs'
@@ -320,15 +320,20 @@ export default {
       let nextPriv = [...allowPriv]
       for (const q of ex) if (!nextPriv.includes(q)) { nextPriv.push(q); st.addedAllow = [...new Set([...(st.addedAllow || []), q])] }
       for (const q of [...(st.addedAllow || [])]) if (!ex.includes(q)) { nextPriv = nextPriv.filter((x) => x !== q); st.addedAllow = st.addedAllow.filter((x) => x !== q) }
-      // 2) 记忆隔离：ext.memcore.isolatePeople（"QQ=抖音号" 逗号分隔，QQ= 也行）
+      // 2) 记忆隔离名单 ext.memcore.isolatePeople 只有主人能改：这里只读、只提醒，不再自动写。
+      //    隔离账号还没写进去的，在日志里（打码）提醒主人去「身份 / 隔离」面板手动加。
       const isoStr = String(c.ext?.memcore?.isolatePeople || '')
       const entries = isoStr.split(/[,，\n]+/).map((x) => x.trim()).filter(Boolean)
-      // 大脑只认带「=」的条目（不带的它跳过）；主人本身由 identity.ownerQq + 私聊默认 private 覆盖，不往里加
-      const has = (q) => entries.some((e) => e.includes('=') && e.split('=')[0].trim() === q)
+      const has = (q) => entries.some((e) => e.includes('=') && e.split('=')[0].trim() === q)   // 大脑只认带「=」的条目
       const want = [...isolatedSet()].filter((q) => q !== ownerQQ())
-      let nextIso = [...entries]
-      for (const q of want) if (!has(q)) { nextIso.push(q + '='); st.addedIso = [...new Set([...(st.addedIso || []), q])] }
-      for (const q of [...(st.addedIso || [])]) if (!want.includes(q)) { nextIso = nextIso.filter((e) => e !== q + '='); st.addedIso = st.addedIso.filter((x) => x !== q) }
+      const missing = want.filter((q) => !has(q))
+      const sig = missing.slice().sort().join(',')
+      if (missing.length && st.isoSuggested !== sig) {
+        st.isoSuggested = sig
+        api.log.info(`18+ 名单同步：有 ${missing.length} 个隔离账号（${missing.map(mask).join('、')}）还没写进记忆隔离名单；名单只有主人能改，需要的话请到「身份 / 隔离」里手动加上`)
+        try { saveState() } catch {}
+      }
+      if (st.addedIso && st.addedIso.length) { delete st.addedIso; try { saveState() } catch {} }   // 旧版自动加的记录作废，名单里已有的条目原样保留
       // 3) 两栏互斥：可聊 18+ 的号不该同时留在「只隔离」框里
       const isoCfg = parseQqList(cfg().isolateQq)
       const isoClean = isoCfg.filter((q) => !ex.includes(q))
@@ -339,15 +344,10 @@ export default {
         api.log.info('18+ 名单同步：把 ' + isoCfg.filter((x) => ex.includes(x)).map(mask).join('、') + ' 从「只隔离」挪到「可聊 18+」')
       }
       const privChanged = nextPriv.join(',') !== allowPriv.join(',')
-      const isoChanged = nextIso.join(',') !== entries.join(',')
-      if (privChanged || isoChanged) {
-        api.setConfig((cc) => ({
-          ...cc,
-          ...(privChanged ? { allow: { ...(cc.allow || {}), private: nextPriv } } : {}),
-          ...(isoChanged ? { ext: { ...cc.ext, memcore: { ...(cc.ext?.memcore || {}), isolatePeople: nextIso.join(',') } } } : {}),
-        }))
+      if (privChanged) {
+        api.setConfig((cc) => ({ ...cc, allow: { ...(cc.allow || {}), private: nextPriv } }))
         saveState()
-        api.log.info(`18+ 名单同步：私聊白名单${privChanged ? '已更新' : '不变'}，记忆隔离${isoChanged ? '已更新' : '不变'}（隔离账号 ${want.length} 个）`)
+        api.log.info(`18+ 名单同步：私聊白名单已更新（隔离账号 ${want.length} 个；记忆隔离名单不自动改）`)
       }
     }
 
@@ -602,6 +602,9 @@ export default {
       isolated: () => [...isolatedSet()],
       hiddenQq: () => isoOnly(), // 只隔离号：日志 / 展示面打码用（redact.js）
       isIsolatedChat: (chatId) => { const q = qqOfChat(chatId); return Boolean(q && isolatedSet().has(q)) },
+      // 存储用：隔离集合去掉主人本人（主人私聊照常进日常存储；隔离号不进聊天流水 / 大脑流水 / 话簿）
+      isolatedPeers: () => [...isolatedSet()].filter((q) => q !== ownerQQ()),
+      isIsolatedPeer: (chatId) => { const q = qqOfChat(chatId); return Boolean(q && q !== ownerQQ() && isolatedSet().has(q)) },
       leakCheck: (text, o = {}) => (cfg().enabled === false ? { ok: true } : fp.leakCheck(text, { exceptQq: String(o.exceptQq || ''), isolated: isolatedSet(), sameAs })),
       target,
     }

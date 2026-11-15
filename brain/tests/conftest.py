@@ -31,6 +31,15 @@ def _isolate_env():
             os.environ[k] = v
 
 
+@pytest.fixture(autouse=True)
+def _reset_adult_window():
+    """18+ 窗口标记只在进程内存里；每个测试前后清空，免得上一个测试的 adult=true 串到下一个。"""
+    from brain import ledger as _L
+    _L._ADULT_CHATS.clear()
+    yield
+    _L._ADULT_CHATS.clear()
+
+
 @pytest.fixture
 def brain(tmp_path, monkeypatch):
     cfg = {"data_dir": str(tmp_path), "admin_key": "k", "scheduler_enabled": False, "owner_chat": "p:10000",

@@ -6,13 +6,14 @@
 //     或 DSH 报上下文超长 → 写交接笔记（聊到哪 / 未完的事 / 10 维情绪快照 / 称呼关系 / 下次接话），空闲时归档旧会话，
 //     下一条消息开新会话，第一轮带上笔记 + 最近 tailLines 行原话。默认不打扰主人（notifyOwner=false 只写日志）。
 //  3. 隔离：笔记只按聊天存在本地（plugins-data/dafeiyu/ctxplan/notes/<聊天哈希>.json），不进大脑、不进星图共享召回；
+//     adultStore.noDisk=true 时 18+ 笔记只放内存、不写盘；隔离号的最近原话从它自己的单独流水目录读；
 //     对上暗号的聊天写的笔记打 adult 标，只有这个聊天此刻也解锁了才带；只隔离号 / 隔离名单的聊天在日志里打码；
 //     不是主人私聊的笔记里不出现主人的身份（名字 / QQ / 称呼）。
 //  4. 缓存统计：assistant/message 的 usage（cacheReadTokens / inputTokens）按聊天累计命中率，人设 / 规则 / 运行时上下文
 //     每轮算哈希，变了记一次（前缀被打断的次数），写到 ctxplan/context-stats.json（聊天号打码）。
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { readJson, writeJson } from '../core/store.js'
 import { redact } from '../core/redact.js'
@@ -151,6 +152,8 @@ export function mayInject(rec, chatId, isUnlocked = unlocked) {
  * @param deps.agentOf        (chatId) => 活 agent 或 null
  * @param deps.volatileFor    ({chat, sessionId}) => 每轮会变的上下文（情绪 / 驱动 / 最近做过的事）
  * @param deps.stableProbe    ({chat, sessionId}) => { persona, rules, context } 稳定前缀的原文（只算哈希，不存）
+ * @param deps.adultNoDisk    () => true 时 18+ 交接笔记只放内存、不写盘（adultStore.noDisk）
+ * @param deps.chatlogDirFor  (chatId) => 这个聊天的流水目录（隔离号在单独目录）；不给就用 chatlog
  */
 export function createCtxPlan(deps) {
   const { dsh, getConfig, log, dataDir } = deps
@@ -161,6 +164,17 @@ export function createCtxPlan(deps) {
   const label = (chatId) => maskChat(chatId) + (isolatedChat(chatId) ? '（隔离）' : '')
   const notesDir = () => dataDir('ctxplan', 'notes')
   const noteFile = (chatId) => join(notesDir(), sha(chatId).slice(0, 20) + '.json')
+  const memNotes = new Map() // chatId → rec：adultStore.noDisk 时 18+ 笔记只放这里，重启即没
+  const noDisk = () => { try { return Boolean(deps.adultNoDisk && deps.adultNoDisk()) } catch (error) { return true } }
+  function saveNote(chatId, rec) {
+    if (rec && rec.adult && noDisk()) {
+      memNotes.set(chatId, rec)
+      try { const f = noteFile(chatId); if (existsSync(f)) unlinkSync(f) } catch (error) {}
+      return
+    }
+    memNotes.delete(chatId)
+    writeJson(noteFile(chatId), rec)
+  }
   const isOwnerChat = (chatId) => { const o = String(getConfig()?.ownerQQ || ''); return Boolean(o) && chatId === 'private:' + o }
   let noCompactWarned = false
 
@@ -216,7 +230,8 @@ export function createCtxPlan(deps) {
   function tailOf(chatId, n) {
     const out = []
     try {
-      const dir = dataDir('chatlog')
+      let dir = dataDir('chatlog')
+      try { if (deps.chatlogDirFor) dir = deps.chatlogDirFor(chatId) || dir } catch (error) {}
       if (!existsSync(dir)) return out
       const days = readdirSync(dir).filter((x) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(x)).sort().slice(-2)
       for (const d of days) {
@@ -230,7 +245,7 @@ export function createCtxPlan(deps) {
   }
 
   // ---------- 笔记 ----------
-  function readNote(chatId) { return readJson(noteFile(chatId), null) }
+  function readNote(chatId) { return memNotes.get(chatId) || readJson(noteFile(chatId), null) }
   function writeNote(chatId, kind, why) {
     const c = getConfig() || {}
     const prev = readNote(chatId)
@@ -249,7 +264,7 @@ export function createCtxPlan(deps) {
       note.tail = raw
     }
     const rec = { v: 1, chatHash: sha(chatId), kind, why, adult: unlocked(chatId), isolated: isolatedChat(chatId), owner, createdAt: Date.now(), injected: false, note }
-    try { mkdirSync(notesDir(), { recursive: true }); writeJson(noteFile(chatId), rec) } catch (error) { log.warn('交接笔记没写成：', error.message) }
+    try { mkdirSync(notesDir(), { recursive: true }); saveNote(chatId, rec) } catch (error) { log.warn('交接笔记没写成：', error.message) }
     return rec
   }
 
@@ -364,11 +379,11 @@ export function createCtxPlan(deps) {
           if (t) parts.unshift(t)
           rec.injected = true
           rec.injectedAt = Date.now()
-          try { writeJson(noteFile(chatId), rec) } catch (error) {}
+          try { saveNote(chatId, rec) } catch (error) {}
           log.info(`上下文计划：${label(chatId)} 这一轮带上了${rec.kind === 'compact' ? '压缩后的最近原话' : '交接笔记'}`)
         } else if (rec.adult && Date.now() - rec.createdAt > 6 * 3600_000) {
           rec.injected = true // 18+ 笔记 6 小时内没解锁：作废，不再带
-          try { writeJson(noteFile(chatId), rec) } catch (error) {}
+          try { saveNote(chatId, rec) } catch (error) {}
         }
       }
       s.pending = ''

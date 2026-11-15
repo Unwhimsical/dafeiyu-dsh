@@ -5,10 +5,10 @@
 
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { appendFileSync, mkdirSync, readFileSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, existsSync, readdirSync, statSync, unlinkSync, rmSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
-import { dataDir, readJson, writeJson } from '../core/store.js'
+import { dataDir, dshHome, readJson, writeJson } from '../core/store.js'
 import { parseMessageEvent } from './inbound.js'
 import { parseReply, bubbleDelay, wantsVoice, stripBoilerplate } from './reply.js'
 import { decideGroupReply, policyFor, topicRelevance, readDrive, groupDesire } from './group-policy.js'
@@ -90,6 +90,8 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       try { return dsh.agents.get(e.sessionId) || dsh.agents.get('session-' + e.sessionId) || null } catch (error) { return null }
     },
     volatileFor, stableProbe,
+    adultNoDisk: () => adultCfg().noDisk,
+    chatlogDirFor: (chatId) => (isolatedOn(chatId) ? isolatedCfg().dir : dataDir('chatlog')),
   })
   try { const c = ctxplan.status(); log.info(`上下文计划就绪：${c.enabled ? '开' : '关'}，${c.compactAt} token 起滚动压缩，${Math.round(c.switchPct * 100)}% 换窗，保留 ${c.keepTurns} 轮原话`) } catch (error) {}
   const OVERFLOW_RE = /context(?:[ _-]?(?:length|window|overflow))|maximum context|too many tokens|token limit|prompt is too long|input is too long|413|超出.*(?:上下文|长度)|上下文.*(?:超|太长)/i
@@ -142,7 +144,8 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     return {
       enabled: a.enabled !== false,
       dir: String(a.dir || ADULT_DIR_DEFAULT),
-      noDisk: a.noDisk === true,     // 开关：开了就一个字都不落盘（只在当轮内存里）
+      // 开关：开了就一个字都不落盘——18+ 流水不写、18+ 交接笔记只放内存、窗口一关就删掉那次的 DSH 会话文件（见 purgeAdultSessions）
+      noDisk: a.noDisk === true,
     }
   }
   const adultGate = () => { try { return globalThis.__DFY_ADULT_GATE__ || null } catch { return null } }
@@ -164,9 +167,41 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     } catch (error) {}
   }
 
+  // ---------- 隔离号单独一本（只有主人能改隔离名单；日记、主动搭话、面板都不读这里） ----------
+  function isolatedCfg() {
+    const a = (getConfig() && getConfig().isolatedStore) || {}
+    return { enabled: a.enabled !== false, dir: String(a.dir || join(dataDir(), 'isolated-chats')) }
+  }
+  // 隔离号 = 暗号模块的隔离集合去掉主人本人（主人私聊照常进普通流水）
+  function isolatedOn(chatId, uid = '') {
+    try {
+      const g = adultGate()
+      if (!g) return false
+      const owner = String((getConfig() && getConfig().ownerQQ) || '')
+      const peers = typeof g.isolatedPeers === 'function' ? g.isolatedPeers() : (typeof g.isolated === 'function' ? g.isolated() : [])
+      const set = new Set((peers || []).map(String).filter((q) => q && q !== owner))
+      const m = /^private:(\d+)$/.exec(String(chatId || ''))
+      if (m && set.has(m[1])) return true
+      const u = String(uid || '').replace(/\D/g, '')
+      return Boolean(u && set.has(u))
+    } catch { return true }   // 判断出错：宁可当隔离，不写进普通流水
+  }
+  function isolatedLog(chatId, who, text, uid = '') {
+    const c = isolatedCfg()
+    if (!c.enabled) return   // 关掉 = 隔离号的话一个字都不落盘
+    try {
+      const d = new Date()
+      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      mkdirSync(c.dir, { recursive: true })
+      appendFileSync(join(c.dir, `${day}.jsonl`),
+        JSON.stringify({ t: Date.now(), chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)) }) + '\n', 'utf8')
+    } catch (error) {}
+  }
+
   // ---------- 聊天流水（给空间日记、主动搭话、面板用） ----------
   function logChat(chatId, who, text, uid = '') {
     if (adultOn(chatId)) { adultLog(chatId, who, text, uid); return }   // 那 40 分钟的流水单独放
+    if (isolatedOn(chatId, uid)) { isolatedLog(chatId, who, text, uid); return }   // 隔离号的话不进普通流水
     try {
       const d = new Date()
       const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -265,6 +300,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const preset = presetFor(level, cfg)
     // 18+ 那 40 分钟：走"成人本"（独立工作区 + 独立会话），日常那条一个字不写
     const adult = chat.kind !== 'system' && adultCfg().enabled && adultOn(chat.chatId)
+    if (!adult && chat.kind !== 'system' && adultCfg().noDisk && map().chats['adult:' + chat.chatId]) purgeAdultSession(chat.chatId, '窗口已关')
     const mapKey = adult ? 'adult:' + chat.chatId : chat.chatId
     const entry = map().chats[mapKey]
     let sid = entry && entry.preset === preset && entry.level === level ? entry.sessionId : ''
@@ -1671,6 +1707,66 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     return ''
   }
 
+  // ---------- adultStore.noDisk：18+ 会话用完即删 ----------
+  // DSH 没有「删除会话」的接口（归档只是藏起来，会话日志还在 <DSH_HOME>/sessions/<工作区>/session-<id>/，
+  // 侧栏投影缓存在 <DSH_HOME>/storages/session_projcache/sessions/session-<id>.json）。
+  // noDisk 时：窗口一关（或插件启动时发现上次留下的），先归档、从会话表里摘掉，再删掉这个会话 id 对应的目录。
+  // 只删名字正好是 session-<这次 18+ 会话 id> 的目录；删不掉（文件被占用）就记着，下次巡检再试。
+  const purgePending = new Set()
+  function removeSessionFiles(sid) {
+    const id = sessionKey(sid)
+    if (!/^[0-9a-zA-Z][0-9a-zA-Z_-]{7,80}$/.test(id)) return false
+    const root = join(dshHome(), 'sessions')
+    let ok = true
+    const rm = (p) => { try { rmSync(p, { recursive: true, force: true }) } catch (error) {} if (existsSync(p)) ok = false }
+    try {
+      for (const ws of readdirSync(root)) {
+        const d = join(root, ws, 'session-' + id)
+        if (existsSync(d)) rm(d)
+      }
+    } catch (error) {}
+    // DSH 侧栏的会话投影缓存里也有一份：storages/session_projcache/sessions/session-<id>.json
+    try {
+      const pc = join(dshHome(), 'storages', 'session_projcache', 'sessions')
+      for (const n of readdirSync(pc)) if (n === 'session-' + id || n.startsWith('session-' + id + '.')) rm(join(pc, n))
+    } catch (error) {}
+    return ok
+  }
+  function purgeAdultSession(chatId, why = '') {
+    const key = 'adult:' + chatId
+    const m = map()
+    const e = m.chats[key]
+    if (!e) return false
+    const sid = String(e.sessionId || '')
+    const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
+    try { Promise.resolve(reg?.archiveSession?.(sid)).catch(() => {}) } catch (error) {}
+    sessionToChat.delete(sessionKey(sid))
+    turnState.delete(sessionKey(sid))
+    delete m.chats[key]
+    saveMap(m)
+    purgePending.add(sid)
+    const t = setTimeout(() => { if (removeSessionFiles(sid)) purgePending.delete(sid) }, 3000)
+    t.unref?.()
+    log.info(`18+ 会话已清掉（noDisk${why ? '，' + why : ''}）`)
+    return true
+  }
+  /** noDisk 巡检：窗口已关的 18+ 会话清掉；之前删不掉的再试一次。返回清掉的个数。 */
+  function purgeAdultSessions() {
+    let n = 0
+    if (!adultCfg().noDisk) return 0
+    for (const sid of [...purgePending]) if (removeSessionFiles(sid)) purgePending.delete(sid)
+    for (const key of Object.keys(map().chats || {})) {
+      if (!key.startsWith('adult:')) continue
+      const chatId = key.slice(6)
+      if (adultOn(chatId) || running.has(chatId) || busy.has(chatId)) continue
+      if (purgeAdultSession(chatId, '巡检')) n++
+    }
+    return n
+  }
+  const adultSweep = setInterval(() => { try { purgeAdultSessions() } catch (error) {} }, 5 * 60_000)
+  adultSweep.unref?.()
+  setTimeout(() => { try { purgeAdultSessions() } catch (error) {} }, 15_000).unref?.()
+
   /** 只让一个聊天重新开始：归档它的会话，下一条消息开新会话。 */
   function resetChat(chatId) {
     const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
@@ -1732,7 +1828,8 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   return {
     ctxplan,
     // 仅关闭本中枢持有的短期媒体缓存，迟到的事件不能重新写入。
-    disposeRecentMedia: () => recentMedia.dispose(),
+    disposeRecentMedia: () => { clearInterval(adultSweep); recentMedia.dispose() },
+    purgeAdultSessions,
     modelFor: targetModel,
     /** 这个聊天最近发来的图片 / 表情（新的在后面），可选只要某人发的 */
     recentMedia: (chatId, userId) => recentMedia.get(chatId, userId),

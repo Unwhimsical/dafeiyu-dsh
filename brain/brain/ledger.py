@@ -8,7 +8,8 @@
     取前 N 条、单条掐短、总字数封顶、结果缓存；平时零查询、零注入。
   * 隐私：按 chat_id（p:/g:）天然隔离，私聊原话不串到群；控制台（chat=None）才看全部。
   * 本地：原话只存在 brain.db 里，不写任何明文镜像文件；cfg.ledger_path 只放手动导出 / 手动生成的回顾。
-  * 不记：18+ 轮次（调用方传 adult=true，或内容命中成人词）、隔离号 / 完全隔离会话里的话，一律不进底账。
+  * 不记：18+ 轮次（调用方传 adult=true、该私聊在 18+ 窗口里，或内容命中成人词）、隔离号 / 完全隔离会话里的话，
+    一律不进底账（判断见 skip_reason，turns 表和 spill 流水也用同一个判断）。
 """
 from __future__ import annotations
 import hashlib, json, math, re, threading, time
@@ -21,6 +22,8 @@ _FILE_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
 _HIT_CACHE: dict = {}          # 触发式召回结果缓存
 _BOOK_CACHE = {"at": 0.0, "names": []}
+_ADULT_LOCK = threading.Lock()
+_ADULT_CHATS: dict = {}        # chat_id → 最近一次 /activate 传 adult=true 的时间（只在内存里）
 
 # 触发词：出现才查账本。平时聊天一次都不查，这是省 token 的第一道闸。
 RECALL_WORDS = re.compile(
@@ -84,23 +87,177 @@ def _audit(b, eid, action, actor="user", detail=""):
 
 # ---------------------------------------------------------------- L0 底账（只增不改）
 
-def _isolated(b, chat: str, uid) -> bool:
-    """隔离号（memcore isolatePeople）说的话 / 隔离号的私聊 / privacy.json 里标成 private（完全隔离）的私聊。"""
+def is_isolated(b, chat: str, uid) -> bool:
+    """隔离号（memcore isolatePeople，只有主人能改）说的话 / 隔离号的私聊。判断出错按隔离处理。"""
     pv = getattr(b, "privacy", None)
     if pv is None:
         return False
     try:
         from .privacy import bare
+        chat = str(chat or "")
         iso_ = set(pv.isolated_ids())
         sp = "".join(ch for ch in str(uid or "") if ch.isdigit())
         if (sp and sp in iso_) or (chat.startswith("p:") and bare(chat) in iso_):
             return True
-        if chat.startswith("p:") and (pv.data.get("private_chats") or {}).get(bare(chat)) == "private":
-            return True
         return pv.src_tier(str(uid or ""), chat) == "isolated"
+    except Exception as e:
+        b.log.debug("隔离判断失败，按隔离处理：%s", e)
+        return True
+
+
+def _isolated(b, chat: str, uid) -> bool:
+    """话簿额外再严一点：privacy.json 里标成 private（完全隔离）的私聊也不进底账。"""
+    if is_isolated(b, chat, uid):
+        return True
+    pv = getattr(b, "privacy", None)
+    if pv is None:
+        return False
+    try:
+        from .privacy import bare
+        return chat.startswith("p:") and (pv.data.get("private_chats") or {}).get(bare(chat)) == "private"
     except Exception as e:
         b.log.debug("话簿隔离判断失败，按隔离处理：%s", e)
         return True
+
+
+def mark_adult(chat, on: bool):
+    """/activate 每轮按插件闸门传的 adult 记一下：true = 这个私聊此刻在 18+ 窗口里，false = 已关。
+    只在内存里，重启即清空；她这一轮的回复（/after_reply）没带 adult 时也据此判断。"""
+    chat = str(chat or "")
+    if not chat:
+        return
+    with _ADULT_LOCK:
+        if on:
+            _ADULT_CHATS[chat] = time.time()
+        else:
+            _ADULT_CHATS.pop(chat, None)
+
+
+def adult_active(b, chat) -> bool:
+    chat = str(chat or "")
+    win = float(conf(b).get("adult_window_minutes", 45)) * 60
+    with _ADULT_LOCK:
+        t = _ADULT_CHATS.get(chat)
+        if t is None:
+            return False
+        if time.time() - t > win:
+            _ADULT_CHATS.pop(chat, None)
+            return False
+        return True
+
+
+def skip_reason(b, chat, uid, text, adult=False, isolated=False):
+    """这一句该不该留在日常存储里（话簿底账 / turns 表 / spill 流水 共用一个判断）。
+    返回 'adult' / 'isolated' / None。判断本身出错按 'error' 处理（宁可不记）。只看标记，不记录内容。"""
+    try:
+        from . import sensitivity as SENS
+        if adult is True or adult_active(b, chat) or SENS.is_adult_text(text):
+            return "adult"
+        if isolated is True or is_isolated(b, str(chat or ""), uid):
+            return "isolated"
+        return None
+    except Exception as e:
+        b.log.debug("存储隔离判断失败，按不记处理：%s", e)
+        return "error"
+
+
+def purge_turns_spill(b, dry_run=False) -> dict:
+    """升级用：按 skip_reason 同一判断，清掉 turns 表 / spill 明文流水 / spill 索引里已经存进去的 18+ 和隔离号的话。
+    只返回条数，不返回内容。18+ 窗口状态只在内存里，事后只能靠内容和隔离名单判断。"""
+    import glob, os
+    from . import sensitivity as SENS
+    from .spill import _dir as _spill_dir, parse_line
+    out = {"ok": True, "dry_run": dry_run, "turns_adult": 0, "turns_isolated": 0,
+           "spill_adult": 0, "spill_isolated": 0, "spill_files": 0, "spill_index": 0}
+
+    def why(chat, uid, text):
+        if SENS.is_adult_text(text):
+            return "adult"
+        return "isolated" if is_isolated(b, str(chat or ""), uid) else None
+
+    ids = []
+    for r in b.db.q("SELECT id, chat_id, user_id, text FROM turns"):
+        w = why(r["chat_id"], r["user_id"], r["text"] or "")
+        if w:
+            out["turns_" + w] += 1
+            ids.append(r["id"])
+    if not dry_run and ids:
+        try:
+            b.db.x("PRAGMA secure_delete=ON")
+        except Exception:
+            pass
+        for i in range(0, len(ids), 300):
+            chunk = ids[i:i + 300]
+            b.db.x(f"DELETE FROM turns WHERE id IN ({','.join('?' * len(chunk))})", chunk)
+    for fp in sorted(glob.glob(str(_spill_dir(b) / "spill-*.jsonl"))):
+        try:
+            with open(fp, encoding="utf-8", errors="replace") as fh:
+                lines = fh.readlines()
+        except OSError:
+            continue
+        keep, dropped = [], 0
+        for ln in lines:
+            d = parse_line(ln)
+            uid = ""
+            try:
+                uid = str((json.loads(ln) or {}).get("user_id") or "")
+            except Exception:
+                pass
+            w = why(d["chat"], uid, d["text"]) if d else None
+            if w:
+                out["spill_" + w] += 1
+                dropped += 1
+            else:
+                keep.append(ln)
+        if dropped:
+            out["spill_files"] += 1
+            if not dry_run:
+                tmp = fp + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    fh.writelines(keep)
+                os.replace(tmp, fp)
+    # spill 索引按文件行号存：有文件改动就整体重建，旧行（含被清掉的原话）一起丢掉
+    if not dry_run and out["spill_files"]:
+        n = b.db.one("SELECT COUNT(*) c FROM spill_index")["c"]
+        b.db.x("DELETE FROM spill_index")
+        b.db.x("DELETE FROM meta WHERE k LIKE 'spill_off:%'")
+        try:
+            from . import spill as S
+            S.index(b, full=True)
+            out["spill_index"] = n - b.db.one("SELECT COUNT(*) c FROM spill_index")["c"]
+        except Exception as e:
+            b.log.warning("spill 索引重建失败：%s", e)
+    return out
+
+
+def purge_sensitive(b, dry_run=False) -> dict:
+    """升级用：按同一判断清掉话簿底账里已经存进去的 18+ / 隔离的原话（连带条目和全文索引）。只返回条数。"""
+    from . import sensitivity as SENS
+    ids, n_adult, n_iso = [], 0, 0
+    for r in b.db.q("SELECT id, chat_id, speaker_id, text_raw, nsfw FROM ledger_utterances"):
+        if bool(r["nsfw"]) or SENS.is_adult_text(r["text_raw"] or ""):
+            n_adult += 1
+            ids.append(r["id"])
+        elif _isolated(b, str(r["chat_id"] or ""), r["speaker_id"]):
+            n_iso += 1
+            ids.append(r["id"])
+    n_ent = 0
+    if ids and not dry_run:
+        try:
+            b.db.x("PRAGMA secure_delete=ON")
+        except Exception:
+            pass
+        for i in range(0, len(ids), 200):
+            chunk = ids[i:i + 200]
+            q = ",".join("?" * len(chunk))
+            eids = [r["id"] for r in b.db.q(f"SELECT id FROM ledger_entries WHERE utterance_id IN ({q})", chunk)]
+            for eid in eids:
+                b.db.x("DELETE FROM ledger_fts WHERE id=?", (eid,))
+                b.db.x("DELETE FROM ledger_entries WHERE id=?", (eid,))
+            n_ent += len(eids)
+            b.db.x(f"DELETE FROM ledger_utterances WHERE id IN ({q})", chunk)
+        _HIT_CACHE.clear()
+    return {"ok": True, "adult": n_adult, "isolated": n_iso, "utterances": len(ids), "entries": n_ent, "dry_run": dry_run}
 
 
 def append_utterance(b, chat, persona, role, uid, text, *, platform="",
@@ -110,8 +267,6 @@ def append_utterance(b, chat, persona, role, uid, text, *, platform="",
     18+ 轮次、隔离号 / 隔离会话的话不记（返回 None）。"""
     if not enabled(b):
         return None
-    if adult or isolated:
-        return None
     txt = str(text or "")
     if not txt.strip():
         return None
@@ -120,8 +275,7 @@ def append_utterance(b, chat, persona, role, uid, text, *, platform="",
     chat = str(chat or "")
     if chat in ("system", "unknown"):
         return None       # 系统内部轮次不算「说过的话」，别污染账本
-    from . import sensitivity as SENS
-    if SENS.is_adult_text(txt) or _isolated(b, chat, uid):
+    if skip_reason(b, chat, uid, txt, adult=adult, isolated=isolated) or _isolated(b, chat, uid):
         return None
     if not platform:
         platform = "douyin" if chat.startswith(("p:douyin", "g:douyin")) else "qq"

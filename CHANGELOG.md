@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The QQ plugin's own his
 
 ## 未发布 / Unreleased
 
+### 隐私 / Privacy
+
+- 记忆大脑：18+ 轮次和隔离号的话不再写进 `turns` 表和 spill 明文流水（和话簿共用 `ledger.skip_reason` 一个判断，判断出错按不写处理）；18+ 窗口里新记的记忆自动加 `nsfw` 隐藏标签；新增 `scripts/purge_sensitive.py`，升级后可清掉以前存进去的（只打印条数）。
+  Brain: 18+ and isolated turns are no longer written to the `turns` table or the plaintext spill log (same predicate as the ledger, failing closed); memories created inside an 18+ window are tagged `nsfw`; new `scripts/purge_sensitive.py` removes previously stored rows and prints counts only.
+- QQ 插件：隔离号的聊天流水单独放（`isolatedStore`，可关成完全不落盘），主人私聊不受影响；`adultStore.noDisk` 现在也覆盖交接笔记（只放内存）和 DSH 会话（窗口关闭后归档并删除那次会话的文件）。
+  QQ plugin: isolated contacts' chat logs go to a separate directory (`isolatedStore`, can be turned off entirely); `adultStore.noDisk` now also covers handoff notes (memory only) and DSH sessions (archived and deleted after the window closes).
+- 暗号模块不再自动改记忆隔离名单 `ext.memcore.isolatePeople`，只在日志里（打码）提醒主人手动添加；memcore 传给大脑的 `isolated` 不再包含主人本人。
+  The handshake module no longer edits `ext.memcore.isolatePeople` automatically; it only logs a masked reminder. memcore no longer flags the owner's own chat as isolated.
+
 ## [0.1.0] - 2026-11-15
 
 首次公开发布 / First public release.

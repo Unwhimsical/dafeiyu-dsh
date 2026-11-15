@@ -353,6 +353,11 @@ def build(b, payload: dict, preview=False, now=None, rnd=None) -> dict:
                 b.think.record(rec_ids, [x["id"] for x in recalled if x["via"] == "assoc"], spont_id, "activate", persona)
             except Exception as e:
                 b.log.debug("think feed: %s", e)
+        try:
+            from . import ledger as L
+            L.mark_adult(chat, adult)   # 记下这个私聊此刻是不是 18+ 窗口，她这一轮的回复也据此不进日常存储
+        except Exception:
+            pass
         if msg:
             record_turn(b, chat, persona, "user", p["user_id"], msg, adult=adult, isolated=(payload or {}).get("isolated") is True)
         b.log.info("activate chat=%s recalled=%s spont=%s ledger=%s first=%s", chat, ",".join(ids), spont_id or "-", len(ledger_ids), first_turn)
@@ -365,21 +370,34 @@ def build(b, payload: dict, preview=False, now=None, rnd=None) -> dict:
 
 
 def record_turn(b, chat, persona, role, uid, text, adult: bool = False, isolated: bool = False):
+    """每轮对话落三处：turns 表、spill 明文流水、话簿底账。
+    18+（调用方传 adult=true / 该私聊在 18+ 窗口里 / 内容命中成人词）和隔离号的话三处都不写——
+    18+ 的记录只留在插件自己的 18+ 单独存放（adultStore，noDisk 时一个字都不落盘），隔离号不进任何共享存储。
+    判断和话簿共用 ledger.skip_reason；判断出错按不写处理。会话计数器（只有时间，没有内容）照常更新。"""
     t = iso()
-    cur = b.db.x("INSERT INTO turns(chat_id, persona, role, user_id, text, created_at) VALUES (?,?,?,?,?,?)", (chat, persona, role, uid, clip(text, 4000), t))
+    try:
+        from . import ledger as L
+        why = L.skip_reason(b, chat, uid, text, adult=adult, isolated=isolated)
+    except Exception as e:
+        b.log.debug("存储隔离判断失败，按不写处理：%s", e)
+        why = "error"
     b.db.x("""INSERT INTO chat_counters(chat_id, replies, session_started_at, last_turn_at) VALUES (?,0,?,?)
               ON CONFLICT(chat_id) DO UPDATE SET last_turn_at=excluded.last_turn_at""", (chat, t, t))
+    if why:
+        b.log.debug("这一轮不进日常存储（%s）", why)
+        return None
+    cur = b.db.x("INSERT INTO turns(chat_id, persona, role, user_id, text, created_at) VALUES (?,?,?,?,?,?)", (chat, persona, role, uid, clip(text, 4000), t))
     try:
         S.append(b, chat, role, text, uid, persona)
     except Exception as e:
         b.log.warning("spill 写入失败：%s", e)
     # 话簿：逐句原话同步进 L0 底账（只进数据库，零模型调用；失败不影响主链路）。
-    # 18+ 轮次（adult=True）、调用方标了 isolated 的会话、隔离号 / 隔离会话的话由 append_utterance 跳过。
     try:
         from . import ledger as L
         L.append_utterance(b, chat, persona, role, uid, text, turn_id=getattr(cur, "lastrowid", None), adult=adult, isolated=isolated)
     except Exception as e:
         b.log.debug("话簿底账写入失败：%s", e)
+    return getattr(cur, "lastrowid", None)
 
 
 def preview(b, payload: dict) -> dict:

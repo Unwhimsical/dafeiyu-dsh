@@ -277,7 +277,7 @@ def after_reply(b, payload: dict) -> dict:
                                              (chat, now_ms() - 10 * 60000))]
     used = M.touch_used(b, chat, reply, [i for i in ids if not str(i).startswith("spill:")])
     out["used"] = used
-    # 18+ 轮次 / 调用方标了隔离的会话：照常记 turn，但不进话簿底账
+    # 18+ 轮次 / 调用方标了隔离的会话：turns、spill、话簿底账都不写（record_turn 里统一判断）
     adult, isolated = payload.get("adult") is True, payload.get("isolated") is True
     if p["message"] and payload.get("record_user"):
         record_turn(b, chat, persona, "user", p["user_id"], p["message"], adult=adult, isolated=isolated)

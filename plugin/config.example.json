@@ -339,6 +339,15 @@
   "privacyView": {
     "adultReveal": false
   },
+  "adultStore": {
+    "enabled": true,
+    "dir": "",
+    "noDisk": false
+  },
+  "isolatedStore": {
+    "enabled": true,
+    "dir": ""
+  },
   "mood": {
     "enabled": true,
     "halfLifeHours": 3,

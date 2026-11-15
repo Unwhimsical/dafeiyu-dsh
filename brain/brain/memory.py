@@ -73,6 +73,12 @@ def remember(b, *, content: str, persona: str | None = None, kind: str = "event"
         src_tier = "other"
     from . import sensitivity as SENS  # 18+：写入时打 nsfw 标签
     tags = SENS.mark_tags(content, tags, kind, source)
+    try:   # 这个私聊此刻在 18+ 窗口里：这期间新记下的东西一律算 18+（隐藏标签），不进日常记忆
+        from . import ledger as _L
+        if "nsfw" not in [str(t).lower() for t in tags] and _L.adult_active(b, chat):
+            tags = tags + ["nsfw"]
+    except Exception:
+        pass
     try:
         importance = max(1, min(5, int(round(float(importance)))))
     except (TypeError, ValueError):
