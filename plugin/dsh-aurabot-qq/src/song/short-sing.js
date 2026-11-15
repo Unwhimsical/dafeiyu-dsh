@@ -1,0 +1,102 @@
+// 唱一小段：她想唱 / 被点歌时，用 Breeze 代理的 /sing 唱 4–8 行，发成语音条。
+// 从「唱歌」扩展（sing）并进内置翻唱模块（song）；配置在 config.song.short，
+// 当天计数沿用原来的 modules-data/sing/count.json。18+ 歌词只在主人私聊且暗号对上时能唱，群里和别人只唱健康内容。
+import fs from 'node:fs'
+import path from 'node:path'
+import { dataDir } from '../core/store.js'
+import * as pg from '../security/public-guard.js'
+
+const HONEST = '跟对方说实话：这次唱不了。不许用文字假装在唱，也别写「[唱歌]」「[语音条]」这种占位。'
+
+export function createShortSing({ getConfig, log, sendVoiceFile, isOwner, handshakeOn }) {
+  const cfg = () => ({ enabled: true, allowGroups: true, dayMax: 3, proxyUrl: 'http://127.0.0.1:8790', ...(getConfig().song?.short || {}) })
+  const dir = () => { const d = dataDir('modules-data', 'sing'); fs.mkdirSync(d, { recursive: true }); return d }
+  const countFile = () => path.join(dir(), 'count.json')
+  const today = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() }
+  const readCount = () => { try { const j = JSON.parse(fs.readFileSync(countFile(), 'utf8')); return j.day === today() ? Number(j.count) || 0 : 0 } catch { return 0 } }
+  const bump = () => { try { fs.writeFileSync(countFile(), JSON.stringify({ day: today(), count: readCount() + 1 })) } catch {} }
+  const isAdult = (t) => Boolean(pg.adultHit(t))
+  const ownerPrivate = (chat) => chat && chat.kind === 'private' && isOwner(String(chat.userId || ''))
+  const chatFromId = (chatId, extra = {}) => {
+    const [kind, id] = String(chatId || '').split(':')
+    return { chatId, kind, userId: kind === 'private' ? id : extra.userId, groupId: kind === 'group' ? id : undefined }
+  }
+  const cleanLyrics = (raw) => String(raw || '')
+    .replace(/<[^<>]{0,40}>/g, ' ')
+    .replace(/\[(?!唱歌\]|哼歌\])[^\]]{0,12}\]/g, ' ')
+    .split(/\r?\n|[。！？!?；;]+|\/+/)
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean)
+
+  async function sing(chat, lyricsRaw, { hum = false } = {}) {
+    const c = cfg()
+    if (!c.enabled) return { ok: false, message: '唱歌功能现在被主人关掉了。' + HONEST }
+    if (!chat || !chat.chatId || chat.kind === 'system') return { ok: false, message: '这里没法发语音。' }
+    if (chat.kind === 'group' && !c.allowGroups) return { ok: false, message: '群里唱歌现在关着。' + HONEST }
+    let lines = cleanLyrics(lyricsRaw)
+    if (lines.length < 4) return { ok: false, message: '歌词要 4 到 8 行（每行一句），现在只有 ' + lines.length + ' 行。写够了再调用一次。' }
+    if (lines.length > 8) lines = lines.slice(0, 8)
+    const text = lines.join('\n')
+    if (text.length > 260) return { ok: false, message: '歌词太长了，8 行以内、每行短一点。' }
+    if (isAdult(text)) {
+      if (!(ownerPrivate(chat) && handshakeOn())) {
+        log.info('唱歌被拦：18+ 歌词只在主人私聊且暗号对上时可以唱（' + chat.chatId + '）')
+        return { ok: false, message: '这段歌词有 18+ 内容，这里不能唱。换一段健康的歌词，或者老实说不唱这个。' }
+      }
+    } else if (!ownerPrivate(chat)) {
+      try {
+        const g = await pg.checkPublic(text, { target: 'sing', chat: chat.chatId, getConfig, log })
+        if (!g || !g.ok) { log.info('唱歌被拦：' + ((g && g.message) || '隐私检查没通过')); return { ok: false, message: ((g && g.message) || '歌词像在说私事') + '，换一段再唱。' } }
+      } catch (e) { return { ok: false, message: '隐私检查暂时用不了，先不唱。' + HONEST } }
+    }
+    const max = Math.max(0, Number(c.dayMax ?? 3))
+    if (readCount() >= max) return { ok: false, message: '今天已经唱了 ' + readCount() + ' 首，嗓子要歇歇，明天再唱。' + HONEST }
+    const base = String(c.proxyUrl || 'http://127.0.0.1:8790').replace(/\/+$/, '')
+    const say = (hum ? '[哼歌] ' : '[唱歌] ') + lines.join('，')
+    let buf
+    try {
+      const r = await fetch(base + '/sing?text=' + encodeURIComponent(say), { signal: AbortSignal.timeout(90000) })
+      const ct = r.headers.get('content-type') || ''
+      if (!r.ok || !ct.includes('audio')) {
+        let code = ''
+        try { code = (await r.json()).code || '' } catch {}
+        log.warn('唱歌失败：代理返回 ' + r.status + (code ? ' ' + code : ''))
+        const why = code === 'SING_CAP' ? '今天唱歌的次数用完了' : code === 'SING_RESERVE' || code === 'BUDGET' ? '今天的嗓子额度要留着说话' : '嗓子（语音服务）出了点问题'
+        return { ok: false, message: why + '。' + HONEST }
+      }
+      buf = Buffer.from(await r.arrayBuffer())
+    } catch (e) {
+      log.warn('唱歌失败：' + e.message)
+      return { ok: false, message: '语音服务连不上。' + HONEST }
+    }
+    const out = path.join(dir(), 'out')
+    fs.mkdirSync(out, { recursive: true })
+    const file = path.join(out, 'sing-' + Date.now() + '.mp3')
+    fs.writeFileSync(file, buf)
+    try {
+      const old = fs.readdirSync(out).filter((f) => f.startsWith('sing-')).sort()
+      for (const f of old.slice(0, Math.max(0, old.length - 10))) fs.rmSync(path.join(out, f), { force: true })
+    } catch {}
+    let sent = null
+    try { sent = await sendVoiceFile(chat.chatId, file, '唱歌') } catch (e) {
+      log.warn('唱歌发送失败：' + e.message)
+      return { ok: false, message: '唱好了但语音条没发出去。' + HONEST }
+    }
+    bump()
+    log.info('唱歌：' + chat.chatId + ' ' + lines.length + ' 行 ' + buf.length + 'B（今天第 ' + readCount() + ' 首）')
+    return { ok: true, message: '已经用语音条唱出去了（' + lines.length + ' 行）。别再把歌词打字重复一遍，顶多补一句话。' }
+  }
+
+  async function status() {
+    const c = cfg()
+    let px = ''
+    try { const j = await (await fetch(String(c.proxyUrl).replace(/\/+$/, '') + '/sing/status', { signal: AbortSignal.timeout(4000) })).json(); px = '｜代理：' + j.count + '/' + j.max + '，预算 ' + j.budget.used + '/' + j.budget.limit + '（留 ' + j.reserve + '）' } catch {}
+    return '唱歌：' + (c.enabled ? '开' : '关') + '｜群里：' + (c.allowGroups ? '开' : '关') + '｜今天 ' + readCount() + '/' + c.dayMax + px
+  }
+
+  return {
+    cfg, sing, status, readCount,
+    singAt: (chatId, lyrics, opts) => sing(chatFromId(chatId), lyrics, opts),
+    singFromText: (chatId, lyrics, info) => sing(chatFromId(chatId, { userId: info && info.userId }), lyrics),
+  }
+}

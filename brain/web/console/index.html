@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星图 · 大肥鱼控制台</title>
+<style>
+  :root{
+    --dsw-alias-bg-base:#0b1020;--dsw-alias-bg-layer-1:#121a2e;--dsw-alias-bg-layer-2:#18223a;
+    --dsw-alias-label-primary:#e6ecf7;--dsw-alias-label-secondary:#a8b3c9;--dsw-alias-label-tertiary:#7a869e;
+    --dsw-alias-border-l1:#24304a;--dsw-alias-border-l2:#2e3b59;--dsw-alias-interactive-bg-hover:#1d2843;
+    --dsw-alias-state-success-primary:#3fb950;--dsw-alias-state-warn-primary:#d29922;--dsw-alias-state-error-primary:#f85149;
+    --dsw-alias-toast-bg:#e6ecf7;--dsw-alias-toast-label:#0b1020;
+    color-scheme:dark;
+  }
+  html,body{margin:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-family:system-ui,"Microsoft YaHei",sans-serif}
+  #dfy-topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;padding:6px 14px;background:rgba(11,16,32,.92);border-bottom:1px solid var(--dsw-alias-border-l1);font-size:13px}
+  #dfy-topbar a{color:#9cc4f5;text-decoration:none;cursor:pointer}
+  #dfy-topbar span{color:var(--dsw-alias-label-tertiary)}
+</style>
+<script src="../js/config.js?v=think3"></script>
+</head>
+<body data-ds-dark-theme>
+<div id="dfy-topbar"><a id="dfy-back">← 回星图</a><span>星图 · 控制台（原大肥鱼面板，读写都走 DSH 桥，保存只走 /save）</span><a href="#ledger" style="margin-left:auto;font-weight:600">话簿 · 她自己的本子 →</a></div>
+<div id="console-root"></div>
+<script>
+  document.getElementById('dfy-back').onclick = function (e) {
+    e.preventDefault()
+    location.href = '../'
+  }
+</script>
+<script src="../vendor/react.production.min.js"></script>
+<script src="../vendor/react-dom.production.min.js"></script>
+<script src="panel.js?v=ledger5"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# 大肥鱼记忆大脑 —— Python 3.10+（推荐 3.11 / 3.12）
+# 运行依赖。开发和跑测试请再装 requirements-dev.txt。
+fastapi>=0.110
+uvicorn>=0.27
+jieba>=0.42
+httpx>=0.27
+pydantic>=2.5
+
+# 可选：向量召回（装了才会用，不装自动降级为 BM25 + FTS）
+# sentence-transformers>=2.7
+# numpy>=1.26

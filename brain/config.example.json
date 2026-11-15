@@ -1,0 +1,60 @@
+{
+  "host": "127.0.0.1",
+  "port": 8780,
+
+  "data_dir": "data",
+  "db_path": "",
+  "backup_dir": "",
+  "backup_keep": 12,
+  "privacy_path": "",
+  "spill_dir": "context",
+
+  "admin_key": "<ADMIN_KEY>",
+  "atlas_key": "",
+  "local_no_auth": true,
+
+  "user_name": "他",
+  "owner_chat": "p:你的QQ号",
+  "adult_chats": [],
+  "body_in_groups": false,
+  "chat_labels": {"p:你的QQ号": "主人", "g:家庭群号": "家庭群"},
+
+  "primary_persona": "dafeiyu",
+  "personas": {"dafeiyu": "大肥鱼"},
+
+  "emotion_enabled": true, "emotion_personas": ["dafeiyu"],
+  "body_enabled": false,   "body_personas": ["dafeiyu"],
+  "desire_enabled": false, "desire_personas": ["dafeiyu"],
+  "dream_enabled": true,   "dream_persona": "dafeiyu",
+  "body": {"wake_chat": ""},
+  "cognition_personas": ["dafeiyu"],
+
+  "budget":   {"total": 2400, "about": 400, "handoff": 800, "recall": 1200, "recall_k": 6, "spontaneous": 160},
+  "recall":   {"min_hits": 2, "min_bm25": 4.0, "max": 6, "spread_decay": 0.42, "spontaneous_chance": 0.25, "importance_weight": 0.2, "recency_weight": 0.2},
+  "prefetch": {"cache_seconds": 120, "wait_ms": 200},
+  "consolidate_minutes": 30,
+  "reflect_every": 8,
+  "importance_gain": 0.05,
+  "importance_cap": 0.85,
+  "pin_by_importance5": false,
+  "purge_archived_days": 0,
+  "scheduler_enabled": true,
+  "tz_offset_minutes": 480,
+
+  "llm": {"base_url": "", "api_key": "", "model": "", "timeout": 30, "classifier_model": ""},
+  "vectors": {"enabled": false, "model": "BAAI/bge-small-zh-v1.5"},
+
+  "ledger": {
+    "enabled": true,
+    "dir": "ledger-data",
+    "trigger": true,
+    "max_entries": 6,
+    "max_chars": 600,
+    "clip_chars": 110,
+    "cache_seconds": 120,
+    "echo_per_day": 3,
+    "default_books": ["惦记", "当日琐碎"],
+    "auto_assign": "local",
+    "know_self": true
+  }
+}

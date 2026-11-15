@@ -1,0 +1,14 @@
+{
+  "default_private": "private",
+  "default_group": "public",
+  "private_chats": {
+    "你的QQ号": "scoped",
+    "家人1的QQ号": "private",
+    "家人2的QQ号": "private"
+  },
+  "groups": {
+    "家庭群号": {"can_see": ["你的QQ号"], "policy": "public"},
+    "开黑群号": {"can_see": [], "policy": "public"}
+  },
+  "guard": {"enabled": true, "allow_phrases": ["晚安", "早上好"]}
+}

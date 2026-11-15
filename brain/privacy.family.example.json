@@ -1,0 +1,16 @@
+{
+  "_说明": "家庭版示例：老爸(10001)、老妈(10002)的私聊完全私密；我(10000)、哥哥(10003)的私聊共享；家庭群(20001)公开。把号码换成真实 QQ 号，复制到 data/privacy.json。以 _ 开头的键会被忽略。",
+  "default_private": "private",
+  "default_group": "public",
+  "private_chats": {
+    "10001": "private",
+    "10002": "private",
+    "10000": "public",
+    "10003": "public"
+  },
+  "groups": {
+    "20001": {"policy": "public", "can_see": []},
+    "20002": {"policy": "private", "can_see": []}
+  },
+  "guard": {"enabled": true, "allow_phrases": ["晚安", "早安", "吃饭了吗"]}
+}

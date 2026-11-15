@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#01030a">
+<title>小肥鱼 · 状态 · 大肥鱼</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ctext y=%2214%22 font-size=%2214%22 fill=%22%23f6d38b%22%3E✦%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  body{overflow:auto;background:#01030a;color:#dbe7ff}
+  #gl,#plab,#corelabel,#msg,#card,#feed,#sheet,#gate,#list,#top .sw,#top .subrow,#top #filters{display:none!important}
+  header.top{position:static;background:linear-gradient(180deg,rgba(6,12,26,.92),rgba(3,7,16,.72));border-bottom:1px solid rgba(120,170,255,.14)}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 20px 60px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .card{background:linear-gradient(165deg,rgba(18,30,52,.88),rgba(8,14,26,.92));border:1px solid rgba(110,170,255,.16);border-radius:14px;padding:14px 16px;box-shadow:0 8px 26px rgba(0,0,0,.35)}
+  .card h3{margin:0 0 10px;font-size:13px;letter-spacing:.08em;color:#f6d38b;font-weight:600;display:flex;align-items:center;gap:6px}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;border-bottom:1px dashed rgba(120,170,255,.10)}
+  .kv:last-child{border-bottom:0}
+  .k{color:#8ea6c8}
+  .v{color:#e8f2ff;text-align:right;word-break:break-all}
+  .on{color:#6ee7a8}.off{color:#ff8fa3}
+  .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px}
+  .mod{background:rgba(10,18,34,.75);border:1px solid rgba(110,170,255,.14);border-radius:11px;padding:10px 12px}
+  .mod .nm{font-size:13px;color:#cfe2ff;font-weight:600}
+  .mod .mt{font-size:11px;color:#6f86a8;margin-top:3px}
+  .mod .st{font-size:11.5px;color:#9fb6d8;margin-top:6px;line-height:1.5;word-break:break-all}
+  pre.log{margin:0;max-height:420px;overflow:auto;background:#04070f;border:1px solid rgba(110,170,255,.12);border-radius:10px;padding:10px;font:11.5px/1.55 ui-monospace,Menlo,Consolas,monospace;color:#9db4d6;white-space:pre-wrap}
+  .hint{font-size:12px;color:#7f96b8;margin:2px 0 14px}
+  a.back{color:#9fc6ff;font-size:12.5px;text-decoration:none}
+  .pill2{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid rgba(120,190,255,.3);color:#9fd0ff}
+  .form{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px 14px}
+  .f{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#b9cbe6}
+  .f input[type=number],.f select,.f input[type=text]{width:118px;background:#0a1424;border:1px solid rgba(120,190,255,.24);color:#e8f2ff;border-radius:8px;padding:5px 8px;font-size:13px}
+  .f input[type=checkbox]{width:16px;height:16px}
+  .save{display:flex;align-items:center;gap:12px;margin-top:12px}
+  #savemsg{font-size:12.5px;color:#8fd7a8}
+</style>
+
+<style id="subpage-fix">
+  html,body{height:auto !important;min-height:100vh;overflow-y:auto !important;overflow-x:hidden}
+  .sub-back{position:absolute;left:14px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;
+  padding:7px 12px;border-radius:999px;border:1px solid rgba(255,230,179,.55);background:rgba(12,18,32,.88);
+  color:#ffe6b3;text-decoration:none;font-size:13px;backdrop-filter:blur(6px)}
+  .sub-back:hover{border-color:rgba(255,230,179,.9);color:#fff3d6}
+  @media (max-width:640px){ .sub-back{top:10px;left:10px;padding:6px 11px;font-size:12px} }
+  body.subpage{position:relative;padding-top:52px}
+</style>
+</head>
+<body class="subpage">
+<a class="sub-back" href="../" title="回到记忆星海" onclick="(function(e){try{if(window.parent&&window.parent!==window){e.preventDefault();e.stopPropagation();window.parent.postMessage({type:'dafeiyu-nav',to:'home'},'*');return false;}}catch(err){}})(event);">← 回星海</a>
+<header class="top">
+  <div class="row">
+    <h1><b>✦</b>小肥鱼<small id="sub">状态 · 只读</small></h1>
+    <span id="mode" title="后端连接">连接中…</span>
+    <a class="back" href="../">← 回记忆星图</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hint">上面这些是大肥鱼插件（手脚）的真实状态，只读。要改抖音节奏、语音、开关，请到 <a href="../console/">星图 · 控制台</a> 对应页直接改，改完几秒内生效。</div>
+  <div class="grid" id="cards"></div>
+  <div style="height:14px"></div>
+
+  <div class="hint">开关与节奏请在 <a href="../console/">星图 · 控制台</a> 改，本页不再写回。</div>
+  <div style="height:8px"></div>
+  <div class="card">
+    <h3>📜 最近日志 <span class="pill2" id="logfile"></span></h3>
+    <pre class="log" id="log"></pre>
+  </div>
+  <div style="height:14px"></div>
+  <div class="card">
+    <h3>🧩 模块 <span class="pill2" id="modcount"></span></h3>
+    <div class="mods" id="mods"></div>
+  </div>
+</div>
+
+<script>
+const C = { keyStorage: 'dafeiyu_admin_key' }
+const FIELDS = []
+let last = null
+function tk(){ try{ const q=new URLSearchParams(location.search).get('key'); if(q){ localStorage.setItem(C.keyStorage,q); return q } }catch(e){} return localStorage.getItem(C.keyStorage)||'' }
+async function api(path, opt){
+  const o = opt || {}
+  const extra = o.headers || {}
+  const headers = Object.assign({ authorization: 'Bearer ' + tk() }, extra)
+  const init = Object.assign({}, o, { headers })
+  const r = await fetch(path, init)
+  const j = await r.json().catch(()=>({}))
+  if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status))
+  return j
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) }
+function ago(ms){ if(!ms) return '—'; const d=Date.now()-ms; if(d<0) return '刚刚'; if(d<60000) return Math.round(d/1000)+' 秒前'; if(d<3600000) return Math.round(d/60000)+' 分钟前'; if(d<86400000) return Math.round(d/3600000)+' 小时前'; return Math.round(d/86400000)+' 天前' }
+function kv(k,v,cls){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>' }
+function yn(b){ return b ? '<span class="on">开</span>' : '<span class="off">关</span>' }
+function card(title, body){ return '<div class="card"><h3>'+title+'</h3>'+body+'</div>' }
+function getPath(o, p){ return p.split('.').reduce((a,k)=>(a&&a[k]!==undefined)?a[k]:undefined, o) }
+
+function viewOf(d){
+  const b = d.bot || {}, au = d.autonomy || {}, w = au.window || {}
+  return { douyin: b.douyin || {}, voice: b.voice || {}, memory: b.memory || {}, safeMode: b.safeMode,
+           ext: { autonomy: { enabled: au.enabled, windowStart: w.start, windowEnd: w.end }, media: {} } }
+}
+function renderForm(d){
+  const box = document.getElementById('form')
+  if (box.dataset.done === '1') {                       // 只在第一次渲染，避免打字被刷掉
+    for (const f of FIELDS) {
+      const el = box.querySelector('[data-p="'+f.path+'"]')
+      if (el && document.activeElement !== el) {
+        const cur = getPath(viewOf(d), f.path)
+        if (f.type === 'bool') el.checked = !!cur
+        else if (cur !== undefined && String(el.value) !== String(cur)) el.value = cur
+      }
+    }
+    return
+  }
+  box.innerHTML = FIELDS.map(f=>{
+    const cur = getPath(viewOf(d), f.path)
+    let input
+    if (f.type === 'bool') input = '<input type="checkbox" data-p="'+f.path+'" '+(cur?'checked':'')+'>'
+    else if (f.type === 'select') input = '<select data-p="'+f.path+'">'+f.options.map(o=>'<option value="'+o+'"'+(o===cur?' selected':'')+'>'+o+'</option>').join('')+'</select>'
+    else if (f.type === 'num') input = '<input type="number" data-p="'+f.path+'" min="'+(f.min??'')+'" max="'+(f.max??'')+'" value="'+(cur??'')+'">'
+    else input = '<input type="text" data-p="'+f.path+'" value="'+esc(cur??'')+'">'
+    return '<label class="f"><span>'+f.label+'</span>'+input+'</label>'
+  }).join('')
+  box.dataset.done = '1'
+}
+
+async function save(){
+  const msg = document.getElementById('savemsg')
+  const changes = []
+  for (const f of FIELDS) {
+    const el = document.querySelector('[data-p="'+f.path+'"]')
+    if (!el) continue
+    const v = f.type === 'bool' ? el.checked : el.value
+    if (v === '' || v === null) continue
+    changes.push({ path: f.path, value: v })
+  }
+  try {
+    const r = await api('/api/fish/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes }) })
+    msg.style.color = r.ok ? '#8fd7a8' : '#ffb3c0'
+    msg.textContent = r.ok ? ('已排队 ' + r.queued + ' 项' + (r.skipped&&r.skipped.length ? '，忽略 ' + r.skipped.length + ' 项' : '')) : (r.message || '没成功')
+    setTimeout(()=>{ msg.textContent = '' }, 6000)
+  } catch (e) {
+    msg.style.color = '#ffb3c0'
+    msg.textContent = '保存失败：' + e.message
+  }
+}
+
+function render(d){
+  last = d
+  document.getElementById('mode').textContent = d.exists ? ('已连接 · ' + d.root) : '大肥鱼目录没找到'
+  const b = d.bot || {}
+  const voice = b.voice || {}
+  const local = b.local || {}
+  const dy = b.douyin || {}
+  const au = d.autonomy || {}
+  const pet = d.pet || {}
+
+  let html = ''
+  html += card('🐟 账号 · 网关', [
+    kv('机器人 QQ', esc(b.botQQ)), kv('主人 QQ', esc(b.ownerQQ)), kv('网关', esc(b.gateway)),
+    kv('人格', esc(b.persona)), kv('安全模式', yn(b.safeMode)), kv('记忆开关', yn((b.memory||{}).enabled)),
+  ].join(''))
+  html += card('🎙 语音', [
+    kv('总开关', yn(voice.enabled)), kv('引擎', esc(voice.engine)), kv('音色', esc(voice.voice)),
+    kv('语速 / 音高', esc(voice.rate) + ' / ' + esc(voice.pitch)), kv('自动发语音', esc(voice.autoChance)), kv('本地 ASR', yn(local.asr)),
+  ].join(''))
+  html += card('📱 刷抖音', [
+    kv('启用', yn(dy.enabled)), kv('自动浏览', yn(dy.autoBrowse)),
+    kv('间隔 / 每天轮次', esc(dy.intervalHours) + ' 小时 / ' + esc(dy.maxRunsPerDay)),
+    kv('每次看几条', esc(dy.perRun)), kv('停留（秒）', esc(dy.dwellMin) + '–' + esc(dy.dwellMax)),
+    kv('自调时间窗', esc((au.window||{}).start) + ':00 – ' + esc((au.window||{}).end) + ':00（' + (au.enabled ? '她可以自己调' : '她不能自己调') + '）'),
+  ].join(''))
+  const lastDec = (au.recent||[]).slice(-1)[0]
+  html += card('🧠 自己说了算', lastDec ? [
+    kv('最近一次决定', esc(lastDec.why || JSON.stringify(lastDec).slice(0,80))),
+    kv('改成', esc(JSON.stringify(lastDec.after||{}).slice(0,90))), kv('时间', ago(lastDec.at || 0)),
+  ].join('') : '<div class="kv"><span class="k">最近决定</span><span class="v">还没有记录</span></div>')
+  html += card('🖥 桌宠 · 服务', [
+    kv('桌宠地址', esc(pet.baseUrl)), kv('桌宠大小', esc(pet.scale)), kv('插件版本', esc(pet.pluginVersion)),
+    kv('记忆大脑', '<span class="on">127.0.0.1:8780</span>'), kv('大肥鱼目录', esc(d.root)),
+  ].join(''))
+  document.getElementById('cards').innerHTML = html
+  document.getElementById('log').textContent = (d.log_tail||[]).join('\n') || '（没有日志）'
+  document.getElementById('logfile').textContent = d.log_file || ''
+
+  const mods = d.modules || []
+  document.getElementById('modcount').textContent = mods.length + ' 个扩展模块'
+  document.getElementById('mods').innerHTML = mods.map(m=>{
+    const keys = Object.keys(m.settings||{}).filter(k=>!(m.settings[k]&&typeof m.settings[k]==='object')).slice(0,4)
+    const st = keys.map(k=>esc(k)+'='+esc(m.settings[k])).join(' · ')
+    return '<div class="mod"><div class="nm">'+esc(m.id)+'</div><div class="mt">更新于 '+ago(m.at)+'</div>'+(st?'<div class="st">'+st+'</div>':'')+'</div>'
+  }).join('') || '<div class="st">没有扩展模块</div>'
+  // writeback removed — switches live in 大肥鱼 console
+}
+
+async function main(){
+  try{ render(await api('/api/fish/status')) }
+  catch(e){ document.getElementById('mode').textContent = '连接失败：' + e.message }
+}
+main()
+setInterval(main, 20000)
+</script>
+</body>
+</html>

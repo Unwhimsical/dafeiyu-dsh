@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#01030a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ctext y=%2214%22 font-size=%2214%22 fill=%22%23f6d38b%22%3E✦%3C/text%3E%3C/svg%3E">
+<title>记忆星图 · 大肥鱼</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/workbench.css">
+<link rel="stylesheet" href="css/cosmos.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="plab"></div>
+<div id="corelabel">原意识 · 大肥鱼</div>
+<div id="msg">正在点亮记忆…</div>
+<!-- v3 宇宙主题（theme: 'cosmos'）用到的极简界面；经典主题下全部隐藏 -->
+<div id="glab"></div>
+<div id="ctip"></div>
+<div id="cmeta"><a id="cmode" title="点击切换数据源">连接中…</a><span class="sep">·</span><span id="ccount"></span></div>
+<div id="cnarr"></div>
+<div id="csub"></div>
+<div id="chint"></div>
+<div id="cctl">
+  <button id="cTour" title="自动漫游（空闲一会儿也会自己开始）">◎ 漫游</button>
+  <button id="cSearch" title="搜索 / 筛选（快捷键 /）">⌕ 搜索</button>
+  <button id="cWb" title="打开 / 收起工作台（快捷键 W）">⚙ 工作台</button>
+  <button id="cMenu" aria-label="菜单">☰</button>
+  <button id="cTheme" title="切换回 v2 经典彩色星图">◐ 经典</button>
+</div>
+
+<header class="top" id="top">
+  <div class="row">
+    <h1><b>✦</b>记忆星图<small id="stat2"></small></h1>
+    <span id="mode" title="点击切换数据源">连接中…</span>
+    <button class="pill" id="wbBtn" title="打开 / 收起工作台（快捷键 W）">⚙ 工作台</button>
+    <button class="ib" id="mb" aria-label="菜单">☰</button>
+  </div>
+  <div class="sw">
+    <input id="q" type="search" placeholder="搜索记忆、日记、小说…" autocomplete="off" enterkeyhint="search">
+    <div id="qr" class="dark"></div>
+  </div>
+  <div class="subrow"><a id="ft">筛选 ▾</a><a id="lt">列表</a><span id="qn"></span></div>
+  <div id="filters" class="dark"></div>
+</header>
+
+<nav id="menu">
+  <button id="mWb">⚙ 工作台</button>
+  <button id="mList">☰ 记忆列表</button>
+  <a href="garden/">🌸 记忆花园</a>
+    <a href="console/">🎛 大肥鱼控制台</a>
+      <a href="fish/">🐟 小肥鱼状态</a>
+    <a href="console/#ext%3Aidentity">🛡 身份对照</a>
+    <a href="growth/">🌱 星海生长 · 情绪调节</a>
+  <a href="atlas/">◎ 2D 星图</a>
+  <button id="mPulse">✦ 演示一次召回脉冲</button>
+  <button id="mThink">✺ 演示一次思考</button>
+  <button id="mHome">⌂ 回到全景</button>
+  <button id="mFind">⌕ 搜索 · 筛选</button>
+  <button id="mTheme">◐ 切换主题</button>
+  <span id="stat"></span>
+</nav>
+
+<div id="card"></div>
+<div id="sheet" class="dark"></div>
+<aside id="list" class="dark">
+  <div class="hd">☰ 记忆列表 <span id="lcount" style="color:var(--mute);font-size:12px"></span>
+    <select id="lsort" class="sel"><option value="date">按日期</option><option value="imp">按重要度</option><option value="fade">快忘了的</option><option value="recall">常想起的</option></select>
+    <button class="btn sm" id="lclose">×</button></div>
+  <div class="body" id="listbody"></div>
+</aside>
+<div id="feed"></div>
+<div id="toast" class="dark"></div>
+
+<aside id="wb" class="wb dark" aria-hidden="true">
+  <div class="wbh">
+    <div class="wbt">⚙ 工作台 <small id="wbmode"></small></div>
+    <button class="btn sm" id="wbClose">收起 ›</button>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="mem" class="on">记忆</button>
+    <button data-tab="ctx">上下文预览</button>
+    <button data-tab="emo">情绪 · 18+</button>
+    <button data-tab="cont">未了 · 便条 · 交接</button>
+    <button data-tab="jobs">整理 · 做梦</button>
+    <button data-tab="logs">大脑日志</button>
+    <button data-tab="bak">备份</button>
+    <button data-tab="set">大脑设置 · 密钥</button>
+  </nav>
+  <div class="wbb" id="wbb">
+    <section data-pane="mem" class="on"></section>
+    <section data-pane="ctx"></section>
+    <section data-pane="emo"></section>
+    <section data-pane="cont"></section>
+    <section data-pane="jobs"></section>
+    <section data-pane="logs"></section>
+    <section data-pane="bak"></section>
+    <section data-pane="set"></section>
+  </div>
+</aside>
+
+<div id="gate"><div class="c dark">
+  <div style="font-size:17px;color:var(--gold)">✦ 需要管理员密钥</div>
+  <div style="font-size:13px;color:var(--mute);margin-top:6px;line-height:1.7">后端已连接，但需要 ADMIN_KEY 才能读取记忆。密钥只保存在本机浏览器里。</div>
+  <input id="gk" type="password" placeholder="粘贴管理员密钥" autocomplete="current-password">
+  <div class="row"><button class="btn gold" id="gb">进入</button><button class="btn" id="gm">先看演示数据</button><span id="gerr" style="color:#ffb3c0;font-size:12px"></span></div>
+</div></div>
+
+<script src="vendor/three-0.170.0.global.min.js"></script>
+<script src="js/config.js?v=think3"></script>
+<script src="js/mock-data.js?v=think3"></script>
+<script src="js/mock.js?v=think3"></script>
+<script src="js/api.js?v=think3"></script>
+<script src="js/starmap.js?v=think3"></script>
+<script src="js/charts.js?v=think3"></script>
+<script src="js/workbench.js?v=think3"></script>
+<script src="js/app.js?v=think3"></script>
+</body>
+</html>

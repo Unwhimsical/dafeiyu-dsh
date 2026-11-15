@@ -1,0 +1,45 @@
+/* 记忆星海 v3「宇宙」主题的极简界面（starmap.js 在 body 上加 cosmos / classic）。
+   原 index.html 引用了这个文件但仓库里一直缺，补一份最小可用版：
+   - classic：宇宙主题专用元素全部隐藏
+   - cosmos：角落小字 + 底部字幕 + 右下角按钮，不挡星图 */
+#glab, #ctip, #cmeta, #cnarr, #csub, #chint, #cctl { display: none; }
+body.classic #glab, body.classic #ctip, body.classic #cmeta, body.classic #cnarr,
+body.classic #csub, body.classic #chint, body.classic #cctl { display: none !important; }
+
+body.cosmos #glab, body.cosmos #ctip, body.cosmos #cmeta, body.cosmos #cnarr,
+body.cosmos #csub, body.cosmos #chint, body.cosmos #cctl { display: block; }
+
+body.cosmos #glab { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+body.cosmos #glab > div { position: absolute; left: 0; top: 0; font-size: 11px; color: rgba(200, 205, 220, .55); white-space: nowrap; letter-spacing: .05em; }
+body.cosmos #glab .gring { color: rgba(220, 220, 230, .4); font-size: 10px; }
+
+body.cosmos #ctip { position: fixed; left: 0; top: 0; z-index: 6; pointer-events: none; padding: 4px 8px; border-radius: 6px;
+  background: rgba(10, 12, 24, .72); color: #e8e6f0; font-size: 12px; opacity: 0; transition: opacity .2s; }
+body.cosmos #ctip.on { opacity: 1; }
+
+body.cosmos #cmeta { position: fixed; left: 14px; top: 10px; z-index: 5; font-size: 12px; color: rgba(225, 222, 240, .7); }
+body.cosmos #cmeta a { color: inherit; cursor: pointer; text-decoration: none; }
+body.cosmos #cmeta .sep { margin: 0 6px; opacity: .5; }
+body.cosmos #cmeta.hashud { display: flex; gap: 6px; align-items: center; }
+
+body.cosmos #cnarr { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 5; max-width: min(70vw, 620px);
+  text-align: center; font-size: 13px; color: rgba(240, 225, 190, .85); pointer-events: none; opacity: 0; transition: opacity .6s; }
+body.cosmos #cnarr.on { opacity: 1; }
+
+body.cosmos #csub { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%) translateY(8px); z-index: 7;
+  max-width: min(86vw, 640px); padding: 10px 14px; border-radius: 10px; background: rgba(10, 12, 24, .78);
+  color: #ece9f6; font-size: 14px; line-height: 1.6; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
+body.cosmos #csub.open { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+body.cosmos #csub [data-a] { cursor: pointer; color: #f3d28a; margin-right: 10px; }
+
+body.cosmos #chint { position: fixed; left: 14px; bottom: 14px; z-index: 5; font-size: 11px; color: rgba(210, 210, 225, .45); pointer-events: none; }
+
+body.cosmos #cctl { position: fixed; right: 12px; bottom: 12px; z-index: 8; display: flex; gap: 6px; }
+body.cosmos #cctl button { border: 1px solid rgba(255, 255, 255, .14); background: rgba(14, 16, 30, .7); color: #e4e2ef;
+  border-radius: 999px; padding: 5px 11px; font-size: 12px; cursor: pointer; }
+body.cosmos #cctl button:hover { background: rgba(40, 44, 70, .85); }
+
+@media (max-width: 640px) {
+  body.cosmos #cctl button { padding: 4px 8px; font-size: 11px; }
+  body.cosmos #csub { bottom: 56px; font-size: 13px; }
+}

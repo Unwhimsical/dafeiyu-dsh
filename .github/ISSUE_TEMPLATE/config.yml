@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题（私密报告）/ Security vulnerability (private)
+    url: https://github.com/Unwhimsical/dafeiyu-dsh/security/advisories/new
+    about: 请不要公开提安全问题，用这里私下报告 / Please report security issues privately here.
+  - name: 使用说明 / Documentation
+    url: https://github.com/Unwhimsical/dafeiyu-dsh#readme
+    about: 安装步骤、配置和常见问题 / Installation, configuration and FAQ.

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星图 · 人设文件</title>
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  html,body{height:auto !important;min-height:100vh;overflow-y:auto !important;overflow-x:hidden}
+  body{background:radial-gradient(1200px 700px at 70% -10%,#16243c,#080b12 60%)}
+  .wrap{max-width:1120px;margin:0 auto;padding:64px 22px 60px}
+  h1{font-size:22px;margin:0 0 6px}
+  .sub{color:#9fb0c8;font-size:13px;margin-bottom:18px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+  .tab{padding:8px 16px;border-radius:999px;font-size:13.5px;cursor:pointer;color:#c8d6ea;
+    background:rgba(20,32,50,.72);border:1px solid rgba(120,170,255,.22);user-select:none}
+  .tab.on{color:#ffe6b3;border-color:rgba(240,217,160,.65);background:linear-gradient(155deg,rgba(46,36,20,.9),rgba(14,20,34,.92))}
+  .card{background:rgba(14,24,40,.72);border:1px solid rgba(120,170,255,.18);border-radius:16px;padding:16px 18px;margin-bottom:14px}
+  .card h2{font-size:14px;margin:0 0 12px;color:#ffe6b3;font-weight:600;letter-spacing:.5px}
+  .kv{display:flex;justify-content:space-between;gap:14px;padding:5px 0;font-size:13.5px;border-bottom:1px dashed rgba(120,170,255,.10)}
+  .kv:last-child{border-bottom:0}
+  .kv b{font-weight:500;color:#eaf2ff}
+  .muted{color:#8ea1bb}
+  .row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:13.5px;margin:6px 0}
+  .row label{display:inline-flex;align-items:center;gap:6px;color:#c8d6ea}
+  input[type=number],input[type=text],select{background:rgba(8,14,24,.9);border:1px solid rgba(120,170,255,.28);
+    color:#eaf2ff;border-radius:9px;padding:6px 9px;font-size:13px;width:96px}
+  select{width:auto;min-width:150px}
+  input[type=checkbox]{width:16px;height:16px;accent-color:#f0d9a0}
+  .btn{margin-top:14px;padding:9px 20px;border-radius:999px;font-size:13.5px;cursor:pointer;
+    background:linear-gradient(155deg,rgba(60,48,24,.95),rgba(18,26,42,.95));color:#ffe6b3;
+    border:1px solid rgba(240,217,160,.5)}
+  .btn:hover{border-color:rgba(255,230,179,.9)}
+  .btn.ghost{background:rgba(20,32,50,.8);color:#c8d6ea;border-color:rgba(120,170,255,.3)}
+  .msg{font-size:13px;margin-left:12px;color:#8ef0c8}
+  .msg.bad{color:#ff9a9a}
+  #pe_text{width:100%;min-height:320px;box-sizing:border-box;background:rgba(6,10,18,.9);color:#eaf2ff;border:1px solid rgba(120,170,255,.25);border-radius:12px;padding:12px;font:13px/1.7 ui-monospace,Menlo,monospace;resize:vertical}
+  pre{max-height:260px;overflow:auto;font-size:12px;line-height:1.5;color:#a8bdd8;
+    background:rgba(6,10,18,.85);border:1px solid rgba(120,170,255,.14);border-radius:10px;padding:10px}
+  .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+  .mod{background:rgba(10,18,30,.8);border:1px solid rgba(120,170,255,.16);border-radius:10px;padding:8px 10px;font-size:12.5px}
+  .mod b{display:block;color:#eaf2ff;font-weight:600}
+  .mod span{color:#8ea1bb;font-size:11.5px}
+  .sub-back{position:fixed;left:14px;top:14px;z-index:60;display:inline-flex;align-items:center;gap:6px;
+    padding:7px 13px;border-radius:999px;font-size:13px;text-decoration:none;color:#ffe6b3;
+    background:linear-gradient(155deg,rgba(40,32,18,.9),rgba(12,18,30,.92));
+    border:1px solid rgba(240,217,160,.45);box-shadow:0 6px 22px rgba(0,0,0,.45)}
+</style>
+<style>/* 星海合并：回星海按钮不再压住页面标题 */.sub-back{position:absolute!important;top:12px!important;z-index:5!important}body.subpage{position:relative;padding-top:52px}@media (max-width:640px){.sub-back{top:10px!important}}</style>
+</head>
+<body class="subpage">
+<a class="sub-back" href="../" title="回到记忆星海">← 回星海</a>
+
+<div class="wrap">
+  <h1>📝 人设文件</h1>
+  <div class="sub">这里只剩「人设正文」原文编辑（原样保留，等主人定用哪个人设编辑器）。开关、平台、表达、模块、贴纸、日志都搬到了 <a href="../console/" style="color:#9cc4f5">星图 · 控制台</a>，保存只走插件 /save；本页不再写回。</div>
+
+  <!-- 人设 -->
+  <div class="pane" id="p-persona">
+    <div class="card"><h2>人设正文（她是谁）</h2>
+      <div class="row">
+        <label>文件 <select id="pe_file"></select></label>
+        <span class="muted" id="pe_meta"></span>
+      </div>
+      <textarea id="pe_text" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="pe_save">保存人设</button>
+        <button class="btn ghost" id="pe_reload">重新读取</button>
+        <span class="msg" id="pe_msg"></span>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:12.5px">保存会自动留一份备份（<code>*.md.bak-时间</code>）；她下一轮对话就会用新的人设。</div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config.js"></script>
+<script>
+(function () {
+  var C = window.BRAIN_CONFIG || {}
+  var KEYSTORAGE = (C.api && C.api.keyStorage) || 'dafeiyu_admin_key'
+  var tk = (function () {
+    try { var q = new URLSearchParams(location.search).get('key'); if (q) { localStorage.setItem(KEYSTORAGE, q); return q } } catch (e) {}
+    try { return localStorage.getItem(KEYSTORAGE) || '' } catch (e) { return '' }
+  })()
+  var DATA = null
+
+  function api(path, opt) {
+    opt = opt || {}
+    var headers = Object.assign({ authorization: 'Bearer ' + tk }, opt.headers || {})
+    if (opt.body) headers['content-type'] = 'application/json'
+    return fetch(path, { method: opt.method || 'GET', headers: headers, body: opt.body, cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return {} }).then(function (j) { if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status)); return j }) })
+  }
+
+
+  function loadPersona(id) {
+    var sel = document.getElementById('pe_file')
+    var url = '/api/persona/get' + (id ? ('?id=' + encodeURIComponent(id)) : '')
+    return api(url).then(function (r) {
+      document.getElementById('pe_text').value = r.text || ''
+      document.getElementById('pe_meta').textContent = (r.path || '') + '  ·  ' + (r.bytes || 0) + ' 字节'
+      if (sel && id) sel.value = id
+    }).catch(function (e) {
+      document.getElementById('pe_meta').textContent = '读取失败：' + e.message
+    })
+  }
+
+  function initPersona() {
+    api('/api/persona').then(function (r) {
+      var sel = document.getElementById('pe_file')
+      sel.innerHTML = (r.files || []).map(function (x) {
+        return '<option value="' + x.id + '">' + x.id + '（' + Math.round(x.bytes / 1024 * 10) / 10 + 'KB）</option>'
+      }).join('') || '<option value="dafeiyu">dafeiyu</option>'
+      var cur = r.current || (r.files[0] && r.files[0].id) || 'dafeiyu'
+      sel.value = cur
+      loadPersona(cur)
+      sel.onchange = function () { loadPersona(this.value) }
+    }).catch(function (e) {
+      document.getElementById('pe_meta').textContent = '人设列表读取失败：' + e.message
+    })
+
+    document.getElementById('pe_reload').onclick = function () {
+      loadPersona(document.getElementById('pe_file').value)
+    }
+    document.getElementById('pe_save').onclick = function () {
+      var m = document.getElementById('pe_msg')
+      m.className = 'msg'; m.textContent = '保存中…'
+      api('/api/persona', { method: 'PUT', body: JSON.stringify({ id: document.getElementById('pe_file').value, text: document.getElementById('pe_text').value }) })
+        .then(function (r) { m.textContent = r.message || '已保存'; loadPersona(document.getElementById('pe_file').value) })
+        .catch(function (e) { m.className = 'msg bad'; m.textContent = '失败：' + e.message })
+    }
+  }
+
+  initPersona()
+})();
+</script>
+<script>/* 在记忆星海控制台里时，「回星海」只通知父页（父页切到 ✦ 星海 并重载），不在 iframe 里自己跳，避免卡住 */(function(){if(window.parent===window)return;document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a'):null;if(!a)return;var h=a.getAttribute('href');if(h==='../'||h==='./'&&/\/(atlas|control|garden|growth|fish|privacy)\/?$/.test(location.pathname)){e.preventDefault();e.stopPropagation();try{window.parent.postMessage({type:'dafeiyu-nav',to:'home'},'*')}catch(x){}}},true)})()</script>
+</body>
+</html>

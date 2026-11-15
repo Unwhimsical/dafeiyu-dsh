@@ -1,0 +1,148 @@
+# ============================================================
+# 运行配置与凭据（绝不提交）
+# ============================================================
+config.local.json
+persona.local.md
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.md
+SECRETS.md
+secret.json
+secrets*.json
+*.key
+*.pem
+*.pfx
+*.p12
+cookies*.txt
+*cookie*.json
+
+# ============================================================
+# 运行时数据（C 层：聊天原文、记忆库、日志、登录态等，绝不提交）
+# ============================================================
+*.db
+*.db-wal
+*.sqlite*
+*.sqlite3*
+sessions.json
+config.json
+privacy.json
+privacy.local.json
+diary.json
+memories.json
+chatlog/
+logs/
+*.log
+attachments/
+local/out/
+data/
+spill/
+context/
+backups/
+ledger-data/*
+!ledger-data/README.txt
+ledger_export*
+*.jsonl
+*.jsonl.*
+
+# ============================================================
+# 浏览器登录态 / 缓存（泄露 = 账号直接被人拿走）
+# ============================================================
+*edge-profile*/
+.edge-profile/
+*chrome-profile*/
+*browser-profile*/
+User Data/
+Cache/
+blob_storage/
+Crashpad/
+
+# ============================================================
+# 插件运行时缓存（DSH 按此名拍快照，改了会丢缓存）
+# ============================================================
+.aurabot-cache/
+
+# ============================================================
+# 备份与历史快照（最隐蔽的一层，绝不要 git add -A）
+# ============================================================
+backup*/
+_backup/
+_safe/
+_patch/
+*.bak*
+*.old
+*broken*
+adult-chats/
+playground/
+selfmod/
+chatlog*/
+write_*.py
+
+# ============================================================
+# 媒体与二进制（含声纹 wav、形象素材 webm，不提交）
+# ============================================================
+*.webm
+*.wav
+*.mp3
+*.mp4
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.ttf
+*.woff*
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.py[cod]
+*.egg-info/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# ============================================================
+# Node / 依赖 / 构建
+# ============================================================
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+coverage/
+.nyc_output/
+dist/
+build/
+*.tmp
+*.tmp-*
+
+# ============================================================
+# 编辑器 / 系统
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# ============================================================
+# 例外：仓库需要的静态资源（必须放在最后）
+# ============================================================
+!*.example.json
+!brain/web/garden/garden.jpg
+!plugin/dsh-aurabot-qq/assets/dafeiyu.jpg
+!docs/images/
+!docs/images/**

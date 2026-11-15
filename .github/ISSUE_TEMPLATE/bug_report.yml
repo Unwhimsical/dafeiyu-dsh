@@ -1,0 +1,65 @@
+name: 报告 Bug / Bug report
+description: 某个功能不按预期工作 / Something doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！**请不要贴真实的 QQ 号、群号、昵称、聊天记录、密钥或 Cookie**，日志和截图请先打码。安全问题请走 [私密报告](https://github.com/Unwhimsical/dafeiyu-dsh/security/advisories/new)，不要在这里提。
+        Thanks! **Do not post real QQ numbers, group IDs, nicknames, chat logs, keys or cookies** — redact logs and screenshots first. Report security issues [privately](https://github.com/Unwhimsical/dafeiyu-dsh/security/advisories/new), not here.
+  - type: dropdown
+    id: component
+    attributes:
+      label: 涉及的部分 / Component
+      options:
+        - 记忆大脑 brain/
+        - 星图 / 控制台 (web)
+        - QQ 插件 plugin/dsh-aurabot-qq/
+        - 扩展模块 ext-modules/
+        - 文档 / Docs
+        - 其他 / Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 实际看到的现象和你期望的结果 / What you saw and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志（已打码）/ Relevant logs (redacted)
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: 版本或 commit / Version or commit
+      placeholder: v0.1.0 或 abc1234
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境 / Environment
+      placeholder: |
+        系统 / OS: Windows 11
+        Python: 3.12
+        DSH NEXT 版本 / version:
+        QQ 网关 / gateway: SnowLuma / NapCat / ...
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认 / Privacy check
+      options:
+        - label: 我确认上面没有真实账号、昵称、聊天内容、密钥或本机用户名 / I confirm there are no real IDs, nicknames, chat content, keys or local user names above
+          required: true
